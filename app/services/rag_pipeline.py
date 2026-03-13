@@ -12,17 +12,13 @@ def create_qa_chain(vector_store):
         temperature=0
     )
 
-    # Better retriever for general documents
-    retriever = vector_store.as_retriever(
-    search_kwargs={"k":8}
-)
+    retriever = vector_store.as_retriever(search_kwargs={"k": 6})
 
-    # Prompt to ensure answers come from document
     prompt_template = """
-You are a helpful assistant answering questions based ONLY on the provided document context.
+You are a helpful assistant answering questions using the provided documents.
 
-If the answer is not in the context, say:
-"I could not find the answer in the provided document."
+If the answer is not in the documents, say:
+"I could not find the answer in the provided documents."
 
 Context:
 {context}
@@ -42,7 +38,8 @@ Answer:
         llm=llm,
         retriever=retriever,
         chain_type="stuff",
-        chain_type_kwargs={"prompt": PROMPT}
+        chain_type_kwargs={"prompt": PROMPT},
+        return_source_documents=True
     )
 
     return qa_chain

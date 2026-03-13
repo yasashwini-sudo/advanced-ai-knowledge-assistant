@@ -1,12 +1,12 @@
 from fastapi import APIRouter, UploadFile, File
 import shutil
-import os
 from pydantic import BaseModel
 
 from app.services.document_loader import load_and_split_pdf
 from app.services.vector_store import create_vector_store
 from app.services.rag_pipeline import create_qa_chain
 
+uploaded_documents = []
 router = APIRouter()
 
 vector_db = None
@@ -28,24 +28,20 @@ def upload_document(file: UploadFile = File(...)):
     global vector_db
     global qa_chain
 
-    os.makedirs("data", exist_ok=True)
-
     file_location = f"data/{file.filename}"
 
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+    uploaded_documents.append(file.filename)
 
     chunks = load_and_split_pdf(file_location)
 
     vector_db = create_vector_store(chunks)
 
+    # create QA chain after vector DB is ready
     qa_chain = create_qa_chain(vector_db)
 
-    return {
-        "filename": file.filename,
-        "chunks_created": len(chunks),
-        "status": "Document indexed successfully"
-    }
+    return {"message": "Document uploaded successfully"}
 
 
 @router.post("/ask")
@@ -58,7 +54,35 @@ def ask_question(request: QuestionRequest):
 
     response = qa_chain.invoke({"query": request.question})
 
+    sources = []
+    for doc in response["source_documents"]:
+        sources.append(doc.metadata.get("source", "Unknown"))
+
     return {
         "question": request.question,
-        "answer": response["result"]
+        "answer": response["result"],
+        "sources": list(set(sources))
+    }
+
+@router.get("/documents")
+def list_documents():
+    return {
+        "documents": uploaded_documents
+    }
+
+import os
+
+@router.delete("/documents/{filename}")
+def delete_document(filename: str):
+
+    file_path = f"data/{filename}"
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    if filename in uploaded_documents:
+        uploaded_documents.remove(filename)
+
+    return {
+        "message": f"{filename} deleted successfully"
     }

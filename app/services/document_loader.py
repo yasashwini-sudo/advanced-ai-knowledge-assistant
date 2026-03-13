@@ -29,7 +29,8 @@ def load_and_split_pdf(file_path: str):
     # Clean text
     for doc in documents:
         doc.page_content = clean_text(doc.page_content)
-
+        doc.metadata["source"] = file_path
+        
     print("Splitting documents...")
 
     text_splitter = RecursiveCharacterTextSplitter(
